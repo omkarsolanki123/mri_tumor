@@ -1,95 +1,55 @@
-import numpy as np
-from keras_preprocessing.image import ImageDataGenerator
-from keras.layers import Dense, Input, Flatten
-from keras.models import Model
-from glob import glob
-import os
-import argparse
-from get_data_deep import get_data_deep
-import matplotlib.pyplot as plt
-from keras.applications.vgg19 import VGG19
-import tensorflow
+import tensorflow as tf
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import Conv2D, MaxPooling2D, Flatten, Dense, Dropout
+from tensorflow.keras.preprocessing.image import ImageDataGenerator
 
-def train_model_deep(config_file):
-    config=get_data_deep(config_file)
-    train = config['model']['trainable']
-    if train == True:
-        img_size = config['model']['image_size']
-        trn_set = config['model']['train_path']
-        te_set= config['model']['test_path']
-        num_cls = config['load_data_deep']['num_classes']
-        rescale = config['img_augment']['rescale']
-        shear_range = config['img_augment']['shear_range']
-        zoom_range= config['img_augment']['zoom_range']
-        verticalf = config['img_augment']['vertical_flip']
-        horizontalf = config['img_augment']['horizontal_flip']
-        batch = config['img_augment']['batch_size']
-        class_mode = config['img_augment']['class_mode']
-        loss = config['model']['loss']
-        optimizer = config['model']['optimizer']
-        metrics = config['model']['metrics']
-        epochs = config['model']['epochs']
+# Load parameters from param.yaml
+import yaml
 
-        print(type(batch))
+with open("deep_params.yaml", "r") as f:
+    params = yaml.safe_load(f)
 
-        resnet = VGG19(input_shape=img_size +[3], weights='imagenet', include_top=False)
+img_width, img_height = params["model"]["image_size"]
+epochs = params["model"]["epochs"]
+batch_size = params["img_augment"]["batch_size"]
 
-        for p in resnet.layers:
-            p.trainable = False
+# Data Augmentation and Preprocessing
+train_datagen = ImageDataGenerator(rescale=1./255)
+test_datagen = ImageDataGenerator(rescale=1./255)
 
-        op = Flatten()(resnet.output)
-        prediction = Dense(num_cls, activation='softmax')(op)
-        
-        mod = Model(inputs = resnet.input, outputs=prediction)
-        print(mod.summary())
-        img_size = tuple(img_size)
+train_generator = train_datagen.flow_from_directory(
+    params["model"]["train_path"],
+    target_size=(img_width, img_height),
+    batch_size=batch_size,
+    class_mode='categorical')
 
-        mod.compile(loss=loss, optimizer=optimizer, metrics=metrics)
+test_generator = test_datagen.flow_from_directory(
+    params["model"]["test_path"],
+    target_size=(img_width, img_height),
+    batch_size=batch_size,
+    class_mode='categorical')
 
-        train_gen = ImageDataGenerator(rescale=1./255,
-                                       shear_range=shear_range,
-                                       zoom_range=zoom_range,
-                                       horizontal_flip=horizontalf,
-                                       vertical_flip=verticalf,
-                                       rotation_range=90)
-        test_gen = ImageDataGenerator(rescale=1./255)
+# Building the CNN model
+model = Sequential([
+    Conv2D(32, (3, 3), activation='relu', input_shape=(img_width, img_height, 3)),
+    MaxPooling2D((2, 2)),
+    Conv2D(64, (3, 3), activation='relu'),
+    MaxPooling2D((2, 2)),
+    Conv2D(128, (3, 3), activation='relu'),
+    MaxPooling2D((2, 2)),
+    Flatten(),
+    Dense(512, activation='relu'),
+    Dropout(0.5),
+    Dense(4, activation='softmax')
+])
 
-        train_set = train_gen.flow_from_directory(trn_set,
-                                                  target_size=(255,255),
-                                                  batch_size=batch,
-                                                  class_mode=class_mode)
-        
-        test_set = test_gen.flow_from_directory(te_set,
-                                                  target_size=(255,255),
-                                                  batch_size=batch,
-                                                  class_mode=class_mode)
-        
-        history = mod.fit(train_set,
-                          epochs=epochs,
-                          validation_data=test_set,
-                          steps_per_epoch=len(train_set),
-                          validation_steps=len(test_set))
-        
-        plt.plot(history.history['loss'], label='train_loss')
-        plt.plot(history.history['val_loss'],label='val_loss')
-        plt.legend()
-        plt.savefig('reports/train_v_loss')
+# Compile the model
+model.compile(optimizer=params["model"]["optimizer"],
+              loss=params["model"]["loss"],
+              metrics=params["model"]["metrics"])
 
-        plt.plot(history.history['accuracy'], label='accuracy')
-        plt.plot(history.history['val_accuracy'],label='val_acc')
-        plt.legend()
-        plt.savefig('reports/acc_v_vacc')
-        
-        mod.save('models/trained.h5')
+# Train the model
+model.fit(train_generator, epochs=epochs, validation_data=test_generator)
 
-    else:
-        print('Model not trained ')
-
-
-
-if __name__ == '__main__':
-    
-    args_parser = argparse.ArgumentParser()
-    args_parser.add_argument('--config',default='deep_params.yaml')
-    passed_args = args_parser.parse_args()
-    train_model_deep(config_file=passed_args.config)
+# Save the model
+model.save('trained1.h5')
