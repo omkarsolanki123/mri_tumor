@@ -87,3 +87,7 @@ target/
 
 # Mypy cache
 .mypy_cache/
+
+# Trained model files
+trained.h5
+trained1.h5
