@@ -23,7 +23,7 @@ model:
   optimizer: 'adam'
   metrics: ['accuracy']
   epochs: 1
-  save_dir: models/trained1.h5
+  save_dir: models/trained.h5
 
 img_augment:
   rescale: 1./255  # Corrected, remove the extra comma
