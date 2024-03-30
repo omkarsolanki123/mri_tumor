@@ -91,3 +91,6 @@ target/
 # Trained model files
 trained.h5
 trained1.h5
+
+models/trained.h5
+models/trained1.h5
